@@ -70,7 +70,7 @@ export PATH=$HOME/.local/node/bin:$PATH
 | `auditar_dominio` | A/AAAA/MX/NS/TXT, RDAP (registrador, alta, vencimiento) y TLS |
 | `auditar_correo` | MX, SPF, DMARC, DKIM (selectores comunes), MTA-STS y BIMI |
 | `auditar_web` | Estado, redirecciones, cabeceras de seguridad, cookies, TLS, robots y sitemap |
-| `captura` | Captura de pantalla (pendiente, fase 2 final) |
+| `captura` | Captura de pantalla PNG de una URL pública (imagen + metadatos) |
 
 Todas rechazan IPs, `localhost` y redes privadas para evitar SSRF. Los resultados incluyen
 `hallazgos` con nivel `alto`, `medio` o `info`.
@@ -122,12 +122,13 @@ sudo certbot --nginx -d auditoria.hlquantlabs.trade --redirect
 ## Fases
 
 1. **Fase 1:** esqueleto, token, proxy, pruebas y unidad de systemd.
-2. **Fase 2 (actual):** `auditar_dominio`, `auditar_correo` y `auditar_web`.
-3. **Fase 3:** `captura`, publicación en MCPize, x402scan y directorios.
+2. **Fase 2 (actual):** `auditar_dominio`, `auditar_correo`, `auditar_web` y `captura`.
+3. **Fase 3:** publicación en MCPize, x402scan y directorios.
 
-La herramienta `captura` llamará al MCP navegador con `NAVEGADOR_URL` y
-`NAVEGADOR_TOKEN`, usando `browser_navigate` y `browser_take_screenshot`. El navegador ya
-expone esas herramientas; no hace falta cambiarlo.
+La herramienta `captura` llama al MCP navegador con `NAVEGADOR_URL` y
+`NAVEGADOR_TOKEN`, usando `browser_navigate` y `browser_take_screenshot`. El token es
+**exclusivo de auditoría** (`MCP_TOKEN_AUDITORIA` en el navegador); no se comparte el
+token general y se puede revocar por separado.
 
 ## Avisos
 

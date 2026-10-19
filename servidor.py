@@ -10,9 +10,11 @@ Uso:
     ./.venv/bin/python servidor.py
 """
 
+import json
 from pathlib import Path
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Image, MCPServer
+from mcp.types import TextContent
 
 from auditorias import (
     ErrorAuditoria,
@@ -20,6 +22,7 @@ from auditorias import (
     auditar_dominio as _auditar_dominio,
     auditar_web as _auditar_web,
 )
+from captura import capturar as _capturar
 
 RAIZ = Path(__file__).resolve().parent
 ENV = RAIZ / ".env"
@@ -100,6 +103,26 @@ async def auditar_web(url: str) -> dict:
         return await _auditar_web(url)
     except ErrorAuditoria as error:
         raise ValueError(str(error)) from error
+
+
+@SERVIDOR.tool()
+async def captura(url: str, completa: bool = True) -> list[TextContent | Image]:
+    """Toma una captura de pantalla de una URL pública.
+
+    Args:
+        url: URL http o https; si no lleva esquema se asume https.
+        completa: true para capturar toda la página; false, solo la ventana.
+    """
+    try:
+        resultado = await _capturar(url, completa=completa)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
+
+    metadatos = {clave: valor for clave, valor in resultado.items() if clave != "imagen"}
+    return [
+        TextContent(type="text", text=json.dumps(metadatos, ensure_ascii=False, indent=2)),
+        Image(data=resultado["imagen"], format="png"),
+    ]
 
 
 def main() -> None:
