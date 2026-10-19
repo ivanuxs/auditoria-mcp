@@ -1,0 +1,119 @@
+# mcp/auditoria
+
+Servidor **MCP** que entrega auditorías deterministas de **dominio, DNS, TLS, correo y
+web** a agentes de IA. En la fase 1 solo expone `estado`; las auditorías reales llegan en
+la fase 2.
+
+Proyecto hermano de `../navegador/`, con su propio entorno, token, registros y repositorio.
+
+---
+
+## Arquitectura
+
+```
+Agente
+  │  Authorization: Bearer <MCP_TOKEN>
+  ▼
+Cloudflare  →  nginx de oficina-2 (auditoria.hlquantlabs.trade)
+  │  proxy_pass a 127.0.0.1:8941
+  ▼
+proxy.py (valida token, 401 si falta)
+  │
+  ▼
+127.0.0.1:8940            ← servidor MCP (SDK oficial mcp 2.3.0)
+```
+
+- El MCP escucha **solo** en `127.0.0.1`.
+- El proxy escucha en `0.0.0.0:8941`; en el servidor solo lo alcanza nginx por `127.0.0.1`.
+- Todo corre inicialmente en **oficina-2**; luego se traslada a un servidor dedicado.
+
+## Qué necesita la máquina
+
+| Pieza | Cómo está en `oficina-2` |
+|---|---|
+| Python | `.venv` con `mcp==2.3.0` y `aiohttp==3.14.5` |
+| Entorno | creado con `python3 -m venv --without-pip` + `get-pip.py` (no hay `python3-venv`) |
+| Servicio | unidad `mcp-auditoria.service` (systemd del sistema) |
+| Nginx | `nginx/auditoria.hlquantlabs.trade.conf` |
+
+## Arrancar
+
+Con systemd, una vez instalada la unidad:
+
+```bash
+sudo cp sistema/mcp-auditoria.service /etc/systemd/system/mcp-auditoria.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now mcp-auditoria
+sudo systemctl status mcp-auditoria
+```
+
+A mano, para depurar:
+
+```bash
+export PATH=$HOME/.local/node/bin:$PATH
+./arrancar.sh          # Ctrl+C o ./parar.sh para cerrar
+```
+
+> Con el servicio activo, `./parar.sh` no sirve para apagarlo — systemd lo resucita a los
+> 5 s. Se para con `sudo systemctl stop mcp-auditoria`.
+
+## Probar
+
+```bash
+./pruebas/prueba_mcp.sh                      # 401 sin token / 200 con token
+.venv/bin/python pruebas/prueba_auditoria.py # initialize, tools/list y tools/call
+```
+
+Debe dar **401** sin token, **200** con token y `tools/list` debe incluir `estado`.
+
+## Configuración (`.env`, permisos 600)
+
+| Clave | Para qué |
+|---|---|
+| `MCP_INTERNO_PUERTO` | Puerto del servidor MCP (127.0.0.1) |
+| `MCP_PROXY_PUERTO` | Puerto del proxy con token (0.0.0.0) |
+| `MCP_TOKEN` | Token que deben enviar los clientes |
+| `MCP_TOKEN_NODIT` | Token exclusivo de Nodit; se revoca quitando su línea y reiniciando |
+| `MCP_DOMINIO` | `auditoria.hlquantlabs.trade` |
+| `X402_PRECIO_USD` | Precio por llamada, para el alta en Nodit |
+| `X402_RED` | `base` |
+| `NAVEGADOR_URL` | Endpoint del MCP navegador para la captura |
+| `NAVEGADOR_TOKEN` | Token para llamar al MCP navegador |
+
+La plantilla está en `.env.example`:
+
+```bash
+cp .env.example .env && chmod 600 .env
+openssl rand -hex 32        # valor para MCP_TOKEN
+```
+
+**Ningún valor del `.env` se imprime**: `proxy.py` los enmascara todos antes de registrar.
+
+## Nginx y DNS
+
+1. Crear el registro DNS `auditoria.hlquantlabs.trade` en Cloudflare.
+2. Copiar `nginx/auditoria.hlquantlabs.trade.conf` a `/etc/nginx/sites-available/`.
+3. Enlazarlo en `sites-enabled/`, probar con `sudo nginx -t` y recargar.
+4. Emitir el certificado:
+
+```bash
+sudo certbot --nginx -d auditoria.hlquantlabs.trade --redirect
+```
+
+## Fases
+
+1. **Fase 1 (actual):** esqueleto, token, proxy, pruebas y unidad de systemd.
+2. **Fase 2:** `auditar_dominio`, `auditar_correo`, `auditar_web` y `captura`.
+3. **Fase 3:** publicación en MCPize, x402scan y directorios.
+
+La herramienta `captura` llamará al MCP navegador con `NAVEGADOR_URL` y
+`NAVEGADOR_TOKEN`, usando `browser_navigate` y `browser_take_screenshot`. El navegador ya
+expone esas herramientas; no hace falta cambiarlo.
+
+## Avisos
+
+- `utils_logging.py` escribe **sin `\n`**: todo va en una línea partida por `\r`. Para
+  leer los registros hay que normalizar.
+- Cada servicio hermano tiene su propio repositorio y su propio entorno.
+- No se comparte código entre `navegador/`, `auditoria/` y `datos-pe/`; se copian las
+  piezas comunes a propósito para mantenerlos independientes.

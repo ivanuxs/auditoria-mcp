@@ -1,0 +1,25 @@
+[Unit]
+Description=MCP de auditoría web y de correo (servidor + proxy con token)
+Documentation=file:///home/oficina-2/Nextcloud/Proyectos/mcp/auditoria/LEEME.md
+After=network-online.target
+Wants=network-online.target
+# Si arrancar.sh sale con error (falta el .env, puerto ocupado…), no se reintenta
+# sin fin: 5 intentos en un minuto y se queda parado para poder mirarlo.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=oficina-2
+Group=oficina-2
+WorkingDirectory=/home/oficina-2/Nextcloud/Proyectos/mcp/auditoria
+Environment=HOME=/home/oficina-2
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/oficina-2/Nextcloud/Proyectos/mcp/auditoria/arrancar.sh
+# El trap de arrancar.sh cierra el MCP al terminar.
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

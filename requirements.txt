@@ -1,0 +1,4 @@
+# Dependencias del servidor MCP de auditoría.
+# Instalar en el entorno: .venv/bin/pip install -r requirements.txt
+mcp==2.3.0
+aiohttp==3.14.5
