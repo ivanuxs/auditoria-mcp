@@ -6,6 +6,11 @@ la fase 2.
 
 Proyecto hermano de `../navegador/`, con su propio entorno, token, registros y repositorio.
 
+## Estado
+
+- **2026-10-19**: unidad `mcp-auditoria` instalada y habilitada; HTTPS activo con
+  Let's Encrypt. El registro DNS está en modo **solo-DNS**, sin proxy de Cloudflare.
+
 ---
 
 ## Arquitectura
@@ -14,7 +19,7 @@ Proyecto hermano de `../navegador/`, con su propio entorno, token, registros y r
 Agente
   │  Authorization: Bearer <MCP_TOKEN>
   ▼
-Cloudflare  →  nginx de oficina-2 (auditoria.hlquantlabs.trade)
+DNS de Cloudflare  →  nginx de oficina-2 (auditoria.hlquantlabs.trade)
   │  proxy_pass a 127.0.0.1:8941
   ▼
 proxy.py (valida token, 401 si falta)

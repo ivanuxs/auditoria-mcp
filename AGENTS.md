@@ -75,5 +75,6 @@ pkill -TERM -f 'auditoria/.venv/bin/python proxy.py'
 ## 8. Cuando pase a producción
 
 - Los pilotos corren primero en `oficina-2`; después se trasladan a servidores dedicados.
-- La puerta pública será `auditoria.hlquantlabs.trade`, con nginx delante y Cloudflare encima.
+- La puerta pública será `auditoria.hlquantlabs.trade`, con nginx delante y el DNS de
+  Cloudflare. El proxy de Cloudflare se activará cuando toque la monetización.
 - El cobro irá por Nodit Agent PayGate o Cloudflare Monetization Gateway; nunca ambos a la vez.
