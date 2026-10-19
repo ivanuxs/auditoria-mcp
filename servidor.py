@@ -14,10 +14,17 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from auditorias import (
+    ErrorAuditoria,
+    auditar_correo as _auditar_correo,
+    auditar_dominio as _auditar_dominio,
+    auditar_web as _auditar_web,
+)
+
 RAIZ = Path(__file__).resolve().parent
 ENV = RAIZ / ".env"
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def cargar_env(ruta: Path = ENV) -> dict:
@@ -54,6 +61,45 @@ def estado() -> dict:
         "version": VERSION,
         "estado": "ok",
     }
+
+
+@SERVIDOR.tool()
+async def auditar_dominio(dominio: str) -> dict:
+    """Audita DNS, RDAP y TLS de un dominio público.
+
+    Args:
+        dominio: Dominio sin esquema, por ejemplo `example.com`.
+    """
+    try:
+        return await _auditar_dominio(dominio)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
+
+
+@SERVIDOR.tool()
+async def auditar_correo(dominio: str) -> dict:
+    """Audita MX, SPF, DMARC, DKIM, MTA-STS y BIMI de un dominio público.
+
+    Args:
+        dominio: Dominio sin esquema, por ejemplo `example.com`.
+    """
+    try:
+        return await _auditar_correo(dominio)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
+
+
+@SERVIDOR.tool()
+async def auditar_web(url: str) -> dict:
+    """Audita estado, redirecciones, cabeceras y cookies de una URL pública.
+
+    Args:
+        url: URL http o https; si no lleva esquema se asume https.
+    """
+    try:
+        return await _auditar_web(url)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
 
 
 def main() -> None:

@@ -2,3 +2,4 @@
 # Instalar en el entorno: .venv/bin/pip install -r requirements.txt
 mcp==2.3.0
 aiohttp==3.14.5
+dnspython==2.9.0
