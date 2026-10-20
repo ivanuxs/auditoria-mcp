@@ -3,8 +3,8 @@
 """Servidor MCP de auditoría web y de correo.
 
 Escucha **solo** en `127.0.0.1`; la puerta pública es el proxy con token.
-En esta fase (1) expone `estado` para validar el esqueleto. Las auditorías
-reales (dominio, correo, web y captura) llegan en la fase 2.
+Expone `estado`, las auditorías de dominio, correo y web, y la captura de
+pantalla de una URL.
 
 Uso:
     ./.venv/bin/python servidor.py

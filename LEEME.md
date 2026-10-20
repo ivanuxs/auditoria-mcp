@@ -122,13 +122,21 @@ sudo certbot --nginx -d auditoria.hlquantlabs.trade --redirect
 ## Fases
 
 1. **Fase 1:** esqueleto, token, proxy, pruebas y unidad de systemd.
-2. **Fase 2 (actual):** `auditar_dominio`, `auditar_correo`, `auditar_web` y `captura`.
-3. **Fase 3:** publicación en MCPize, x402scan y directorios.
+2. **Fase 2 (completa):** `auditar_dominio`, `auditar_correo`, `auditar_web` y `captura`.
+3. **Fase 3 (actual):** publicación en MCPize, x402scan y directorios.
 
 La herramienta `captura` llama al MCP navegador con `NAVEGADOR_URL` y
 `NAVEGADOR_TOKEN`, usando `browser_navigate` y `browser_take_screenshot`. El token es
 **exclusivo de auditoría** (`MCP_TOKEN_AUDITORIA` en el navegador); no se comparte el
 token general y se puede revocar por separado.
+
+## Publicación
+
+- `LISTADO.md` reúne los metadatos para Glama, MCP.so, MCP Market y MCPize: nombre,
+  descripciones en español e inglés, categoría, etiquetas, herramientas y límites.
+- `logo.png` (512×512) y `logo.svg` son el icono del listado.
+- El `.env` queda fuera del repositorio por `.gitignore`; el repositorio no lleva
+  claves ni datos personales.
 
 ## Avisos
 
