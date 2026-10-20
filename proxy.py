@@ -67,6 +67,7 @@ TOKENS = [
     for valor in (
         ENV_DATOS.get("MCP_TOKEN", "").strip(),
         ENV_DATOS.get("MCP_TOKEN_NODIT", "").strip(),
+        ENV_DATOS.get("MCP_TOKEN_MCPIZE", "").strip(),
     )
     if valor
 ]

@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 PUERTO=$(grep -E '^MCP_PROXY_PUERTO=' .env | cut -d= -f2 | tr -d ' \r'); PUERTO=${PUERTO:-8941}
 TOKEN=$(grep -E '^MCP_TOKEN=' .env | cut -d= -f2 | tr -d ' \r')
 TOKEN_NODIT=$(grep -E '^MCP_TOKEN_NODIT=' .env | cut -d= -f2 | tr -d ' \r')
+TOKEN_MCPIZE=$(grep -E '^MCP_TOKEN_MCPIZE=' .env | cut -d= -f2 | tr -d ' \r')
 
 CUERPO='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"prueba","version":"1.0"}}}'
 
@@ -36,9 +37,21 @@ else
         -d "$CUERPO"
 fi
 
-echo "== 4) ningún token aparece en claro en los registros =="
+echo "== 4) con token de MCPize (debe dar 200) =="
+if [[ -z "$TOKEN_MCPIZE" ]]; then
+    echo "· Sin MCP_TOKEN_MCPIZE en el .env: se omite."
+else
+    curl -s -o /dev/null -m 30 -w "HTTP %{http_code}\n" \
+        -X POST "http://127.0.0.1:${PUERTO}/mcp" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json, text/event-stream" \
+        -H "Authorization: Bearer ${TOKEN_MCPIZE}" \
+        -d "$CUERPO"
+fi
+
+echo "== 5) ningún token aparece en claro en los registros =="
 FALLO=0
-for VALOR in "$TOKEN" "$TOKEN_NODIT"; do
+for VALOR in "$TOKEN" "$TOKEN_NODIT" "$TOKEN_MCPIZE"; do
     [[ -z "$VALOR" ]] && continue
     if grep -qF -- "$VALOR" logs/*.txt 2>/dev/null; then
         echo "✘ FALLO: un token aparece en claro en los registros."
