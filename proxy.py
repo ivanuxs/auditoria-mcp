@@ -23,6 +23,7 @@ Uso:
 
 import asyncio
 import hmac
+import json
 import sys
 from pathlib import Path
 
@@ -119,6 +120,19 @@ async def manejar(peticion: web.Request) -> web.StreamResponse:
 
     destino = INTERNO + peticion.path_qs
     cuerpo = await peticion.read()
+    # Solo el nombre del método y, si es una llamada, el de la herramienta: sirve
+    # para las métricas y no registra ni argumentos ni contenido.
+    detalle = ""
+    try:
+        carga = json.loads(cuerpo) if cuerpo else {}
+        if isinstance(carga, dict):
+            if carga.get("method") == "tools/call":
+                nombre = (carga.get("params") or {}).get("name", "?")
+                detalle = f" tools/call:{nombre}"
+            elif carga.get("method"):
+                detalle = f" {carga['method']}"
+    except Exception:  # noqa: BLE001
+        detalle = ""
     cabeceras = {clave: valor for clave, valor in peticion.headers.items()
                  if clave.lower() not in NO_REENVIAR}
 
@@ -134,7 +148,7 @@ async def manejar(peticion: web.Request) -> web.StreamResponse:
             async for trozo in respuesta.content.iter_any():
                 await salida.write(trozo)
             await salida.write_eof()
-            registrar(f"[proxy] {peticion.method} {peticion.path} → {respuesta.status}")
+            registrar(f"[proxy] {peticion.method} {peticion.path} → {respuesta.status}{detalle}")
             return salida
     except aiohttp.ClientError as error:
         registrar(f"[proxy] el MCP interno no responde: {type(error).__name__}: {error}")
