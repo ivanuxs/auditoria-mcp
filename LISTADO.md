@@ -14,6 +14,7 @@ Copia y pega; no hay que reescribir nada.
 | Categoría | Security & Compliance |
 | Etiquetas | `security`, `dns`, `tls`, `email`, `spf`, `dmarc`, `headers`, `audit`, `peru` |
 | Icono | `logo.png` (512×512) o `logo.svg` |
+| Licencia del código | MIT |
 | Licencia del servicio | Uso comercial bajo token |
 | Contacto | Ivan Medina Soto — `soporte@hlquantlabs.trade` — Perú |
 
