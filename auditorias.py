@@ -26,6 +26,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import aiohttp
 import dns.asyncresolver
 import dns.exception
+import dns.flags
 import dns.resolver
 
 TIEMPO_DNS = 6.0
@@ -33,7 +34,7 @@ TIEMPO_HTTP = 15.0
 MAX_REDIRECCIONES = 8
 MAX_TXT = 20
 MAX_CUERPO = 512 * 1024
-AGENTE = "mcp-auditoria/0.2 (+https://auditoria.hlquantlabs.trade)"
+AGENTE = "mcp-auditoria/0.3 (+https://auditoria.hlquantlabs.trade)"
 DOMINIO_RE = re.compile(
     r"^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$",
     re.IGNORECASE,
@@ -122,12 +123,12 @@ def _resolutor() -> dns.asyncresolver.Resolver:
 
 async def _consultar(nombre: str, tipo: str) -> list[str]:
     """Consulta DNS y devuelve los registros como texto; [] si no hay."""
-    try:
-        respuesta = await _resolutor().resolve(nombre, tipo, raise_on_no_answer=False)
-    except dns.exception.DNSException:
-        return []
-    if respuesta.rrset is None:
-        return []
+    registros, _ = await _consultar_detalle(nombre, tipo)
+    return registros
+
+
+def _registros(respuesta, tipo: str) -> list[str]:
+    """Convierte una respuesta DNS en texto, con los TXT ya concatenados."""
     if tipo == "TXT":
         return [
             b"".join(registro.strings).decode("utf-8", "replace")
@@ -135,6 +136,30 @@ async def _consultar(nombre: str, tipo: str) -> list[str]:
             if getattr(registro, "strings", None) is not None
         ]
     return [str(registro).rstrip(".") for registro in respuesta]
+
+
+async def _consultar_detalle(nombre: str, tipo: str) -> tuple[list[str], int | None]:
+    """Consulta DNS y devuelve (registros, TTL); ([], None) si no hay."""
+    try:
+        respuesta = await _resolutor().resolve(nombre, tipo, raise_on_no_answer=False)
+    except dns.exception.DNSException:
+        return [], None
+    if respuesta.rrset is None:
+        return [], None
+    return _registros(respuesta, tipo), int(respuesta.rrset.ttl)
+
+
+async def _validado_dnssec(nombre: str) -> bool:
+    """True si el resolutor pudo validar DNSSEC (bandera AD)."""
+    try:
+        resolutor = _resolutor()
+        resolutor.use_edns(0, want_dnssec=True)
+        respuesta = await resolutor.resolve(nombre, "A", raise_on_no_answer=False)
+    except (dns.exception.DNSException, AttributeError):
+        return False
+    if respuesta.response is None:
+        return False
+    return bool(respuesta.response.flags & dns.flags.AD)
 
 
 async def _verificar_publico(host: str) -> list[str]:
@@ -338,6 +363,33 @@ async def _obtener_texto(url: str, limite: int = MAX_CUERPO) -> tuple[int, str]:
 # ---------------------------------------------------------------------------
 
 
+def _nota(hallazgos: list[dict]) -> dict:
+    """Calificación de la A a la F con reglas fijas a partir de los hallazgos."""
+    altos = sum(1 for h in hallazgos if h.get("nivel") == "alto")
+    medios = sum(1 for h in hallazgos if h.get("nivel") == "medio")
+    informativos = sum(1 for h in hallazgos if h.get("nivel") == "info")
+    puntos = max(0, 100 - 25 * altos - 10 * medios)
+    letra = ("A" if puntos >= 90 else "B" if puntos >= 75 else
+             "C" if puntos >= 60 else "D" if puntos >= 40 else "F")
+    return {
+        "letra": letra,
+        "puntos": puntos,
+        "altos": altos,
+        "medios": medios,
+        "informativos": informativos,
+    }
+
+
+def _algoritmos(registros: list[str]) -> list[str]:
+    """Números de algoritmo DNSSEC presentes en registros DS/DNSKEY."""
+    salida = set()
+    for registro in registros:
+        partes = registro.split()
+        if len(partes) >= 3 and partes[2].isdigit():
+            salida.add(partes[2])
+    return sorted(salida)
+
+
 async def auditar_dominio(dominio: str) -> dict:
     """Audita DNS, RDAP y TLS de un dominio público."""
     nombre = normalizar_dominio(dominio)
@@ -386,6 +438,69 @@ async def auditar_dominio(dominio: str) -> dict:
         "tls": tls,
         "rdap": rdap,
         "hallazgos": hallazgos,
+        "calificacion": _nota(hallazgos),
+    }
+
+
+async def auditar_dns(dominio: str) -> dict:
+    """Audita CAA, DNSSEC, SOA, CNAME y TTL de un dominio público."""
+    nombre = normalizar_dominio(dominio)
+
+    a, ttl_a = await _consultar_detalle(nombre, "A")
+    aaaa, _ = await _consultar_detalle(nombre, "AAAA")
+    if a or aaaa:
+        await _verificar_publico(nombre)
+
+    caa = await _consultar(nombre, "CAA")
+    soa = await _consultar(nombre, "SOA")
+    cname = await _consultar(nombre, "CNAME")
+    ns = await _consultar(nombre, "NS")
+    ds = await _consultar(nombre, "DS")
+    dnskey = await _consultar(nombre, "DNSKEY")
+
+    firmado = bool(ds or dnskey)
+    validado = await _validado_dnssec(nombre) if firmado else False
+
+    hallazgos = []
+    if not caa:
+        hallazgos.append({"nivel": "medio",
+                          "mensaje": "Sin CAA: cualquier CA puede emitir "
+                                     "certificados para el dominio."})
+    if not firmado:
+        hallazgos.append({"nivel": "info",
+                          "mensaje": "Sin DNSSEC: las respuestas DNS no van firmadas."})
+    elif not validado:
+        hallazgos.append({"nivel": "info",
+                          "mensaje": "DNSSEC firmado, pero este resolutor no "
+                                     "confirmó la validación (bandera AD)."})
+    if not soa:
+        hallazgos.append({"nivel": "medio", "mensaje": "No se encontró registro SOA."})
+    if cname:
+        hallazgos.append({"nivel": "medio",
+                          "mensaje": "Hay CNAME en el nombre raíz; no es lo habitual."})
+    if not a and not aaaa:
+        hallazgos.append({"nivel": "info",
+                          "mensaje": "Sin A/AAAA: el dominio no aloja web, "
+                                     "solo DNS o correo."})
+    if not ns:
+        hallazgos.append({"nivel": "medio", "mensaje": "No se encontraron servidores NS."})
+
+    return {
+        "dominio": nombre,
+        "caa": caa,
+        "dnssec": {
+            "firmado": firmado,
+            "validado": validado,
+            "ds": ds,
+            "claves": len(dnskey),
+            "algoritmos": _algoritmos(ds + dnskey),
+        },
+        "soa": soa,
+        "cname": cname,
+        "ns": ns,
+        "ttl_a": ttl_a,
+        "hallazgos": hallazgos,
+        "calificacion": _nota(hallazgos),
     }
 
 
@@ -457,6 +572,7 @@ async def auditar_correo(dominio: str) -> dict:
         "mta_sts": {"registros": mta_registros, "politica": mta_politica},
         "bimi": bimi[:MAX_TXT],
         "hallazgos": hallazgos,
+        "calificacion": _nota(hallazgos),
         "nota": "DKIM solo se busca en selectores comunes; puede existir otro.",
     }
 
@@ -643,4 +759,60 @@ async def auditar_web(url: str) -> dict:
             "urls": sitemap.count("<loc>"),
         },
         "hallazgos": hallazgos,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Comparación
+# ---------------------------------------------------------------------------
+
+MAX_COMPARAR = 5
+LIMITE_COMPARAR = 3
+
+
+async def comparar(dominios: str) -> dict:
+    """Compara de 2 a 5 dominios y los ordena de peor a mejor."""
+    lista = [valor.strip() for valor in (dominios or "").split(",") if valor.strip()]
+    if len(lista) < 2:
+        raise ErrorAuditoria("Indica al menos dos dominios separados por coma.")
+    if len(lista) > MAX_COMPARAR:
+        raise ErrorAuditoria(f"Máximo {MAX_COMPARAR} dominios por comparación.")
+
+    nombres: list[str] = []
+    for valor in lista:
+        nombre = normalizar_dominio(valor)
+        if nombre in nombres:
+            raise ErrorAuditoria(f"Dominio repetido: {nombre}.")
+        nombres.append(nombre)
+
+    limite = asyncio.Semaphore(LIMITE_COMPARAR)
+
+    async def revisar(nombre: str) -> dict:
+        async with limite:
+            try:
+                dominio, correo = await asyncio.gather(
+                    auditar_dominio(nombre), auditar_correo(nombre))
+            except ErrorAuditoria as error:
+                return {"dominio": nombre, "error": str(error)}
+        hallazgos = (list(dominio.get("hallazgos") or [])
+                     + list(correo.get("hallazgos") or []))
+        return {
+            "dominio": nombre,
+            "calificacion": _nota(hallazgos),
+            "hallazgos": hallazgos,
+            "tls_valido": bool((dominio.get("tls") or {}).get("valido")),
+            "mx": len(correo.get("mx") or []),
+            "spf": bool(correo.get("spf")),
+            "dmarc": bool(correo.get("dmarc")),
+        }
+
+    resultados = await asyncio.gather(*(revisar(nombre) for nombre in nombres))
+    correctos = [r for r in resultados if "error" not in r]
+    correctos.sort(key=lambda r: (r["calificacion"]["puntos"], r["dominio"]))
+
+    return {
+        "dominios": resultados,
+        "orden": [r["dominio"] for r in correctos],
+        "regla": ("Peor primero. Se restan 25 puntos por hallazgo alto y 10 por "
+                  "medio; los informativos no restan y el desempate es alfabético."),
     }

@@ -108,7 +108,8 @@ async def main() -> int:
                 "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}) as respuesta:
             datos = await leer_jsonrpc(respuesta)
             nombres = [t.get("name") for t in (datos.get("result") or {}).get("tools", [])]
-            for herramienta in ("auditar_dominio", "auditar_correo", "auditar_web"):
+            for herramienta in ("auditar_dominio", "auditar_correo", "auditar_web",
+                                "auditar_dns", "comparar"):
                 comprobar(herramienta in nombres, f"tools/list incluye {herramienta}")
 
         async def llamar(nombre: str, argumentos: dict, ident: int) -> dict:
@@ -126,6 +127,8 @@ async def main() -> int:
                   f"devuelve el dominio auditado ({resultado.get('dominio')})")
         comprobar(bool(resultado.get("tls")), "incluye el bloque TLS")
         comprobar("dns" in resultado, "incluye el bloque DNS")
+        comprobar(bool(resultado.get("calificacion")),
+                  "incluye calificación A-F")
 
         print(f"== auditar_correo {CORREO} ==")
         datos = await llamar("auditar_correo", {"dominio": CORREO}, 11)
@@ -136,6 +139,8 @@ async def main() -> int:
         comprobar("spf" in resultado, "incluye SPF")
         comprobar("dmarc" in resultado, "incluye DMARC")
         comprobar(bool(resultado.get("hallazgos")), "incluye hallazgos")
+        comprobar(bool(resultado.get("calificacion")),
+                  "incluye calificación A-F")
 
         print(f"== auditar_web {URL} ==")
         datos = await llamar("auditar_web", {"url": URL}, 12)
@@ -153,6 +158,40 @@ async def main() -> int:
         resultado = datos.get("result") or {}
         comprobar(bool(resultado.get("isError")) or bool(datos.get("error")),
                   "rechaza una IP privada/loopback")
+
+        print(f"== auditar_dns {DOMINIO} ==")
+        datos = await llamar("auditar_dns", {"dominio": DOMINIO}, 14)
+        resultado = extraer(datos)
+        comprobar(not (datos.get("result") or {}).get("isError"),
+                  "auditar_dns no devuelve isError")
+        comprobar("dnssec" in resultado and "caa" in resultado,
+                  "incluye CAA y DNSSEC")
+        comprobar(bool(resultado.get("calificacion")),
+                  "auditar_dns incluye calificación A-F")
+
+        print("== comparar ==")
+        datos = await llamar("comparar", {"dominios": f"{CORREO},example.com"}, 15)
+        resultado = extraer(datos)
+        comprobar(not (datos.get("result") or {}).get("isError"),
+                  "comparar no devuelve isError")
+        comprobar(len(resultado.get("dominios") or []) == 2,
+                  "compara los dos dominios")
+        primero = resultado.get("orden") or []
+        datos = await llamar("comparar", {"dominios": f"{CORREO},example.com"}, 16)
+        segundo = extraer(datos).get("orden") or []
+        comprobar(primero == segundo and len(primero) == 2,
+                  f"el orden es determinista ({primero})")
+
+        print("== rechazos de comparar ==")
+        for nombre, valor, ident in (
+            ("un solo dominio", CORREO, 17),
+            ("seis dominios", "a.pe,b.pe,c.pe,d.pe,e.pe,f.pe", 18),
+            ("una IP", "127.0.0.1,example.com", 19),
+            ("localhost", "localhost,example.com", 20),
+        ):
+            datos = await llamar("comparar", {"dominios": valor}, ident)
+            resultado = datos.get("result") or {}
+            comprobar(bool(resultado.get("isError")), f"rechaza {nombre}")
 
     print()
     if FALLOS:

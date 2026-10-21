@@ -48,8 +48,14 @@ reiniciar el servicio sin contraseña se mata el proxy; `arrancar.sh` termina co
 distinto de cero, su `trap` cierra el MCP y systemd lo levanta otra vez:
 
 ```bash
-pkill -TERM -f 'auditoria/.venv/bin/python proxy.py'
+pkill -TERM -P "$(systemctl show -p MainPID --value mcp-auditoria)" -f 'proxy.py'
 ```
+
+Se mata **solo** el proxy de esta unidad (`-P` lo limita a los hijos de su
+`arrancar.sh`). El patrón antiguo (`pkill -f 'auditoria/.venv/bin/python proxy.py'`) **no
+funcionaba**: el proceso se lanza con ruta relativa (`./.venv/bin/python proxy.py`), así
+que no hay coincidencia y `pkill` sale sin matar nada. Un `pkill -f 'proxy.py'` a secas
+mataría también los proxies de los servicios hermanos.
 
 - **No** se mata el servidor MCP a secas: el proxy quedaría vivo y el puerto interno ocupado.
 - **No** se usa SIGKILL sobre `arrancar.sh`: no correría su `trap` y el MCP quedaría

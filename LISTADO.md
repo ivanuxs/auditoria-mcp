@@ -10,7 +10,7 @@ Copia y pega; no hay que reescribir nada.
 | Nombre | Auditoría MCP |
 | Slug | `auditoria-mcp` |
 | Título | Auditoría MCP — salud de dominio, correo y web |
-| Versión | 0.2.0 |
+| Versión | 0.3.0 |
 | Categoría | Security & Compliance |
 | Etiquetas | `security`, `dns`, `tls`, `email`, `spf`, `dmarc`, `headers`, `audit`, `peru` |
 | Icono | `logo.png` (512×512) o `logo.svg` |
@@ -20,7 +20,8 @@ Copia y pega; no hay que reescribir nada.
 
 ## Descripción corta (≤160 caracteres)
 
-> Auditorías de dominio, correo y web en una llamada: DNS, TLS, SPF, DMARC, cabeceras y cookies, con hallazgos y nota de la A a la F.
+> Auditorías de dominio, DNS, correo y web en una llamada: CAA, DNSSEC, TLS, SPF,
+> DMARC, cabeceras y cookies, con hallazgos y nota de la A a la F.
 
 English:
 
@@ -34,10 +35,15 @@ English:
 > una URL concreta: código de estado, cadena de redirecciones, cabeceras de seguridad y
 > cookies.
 >
-> Cada informe trae hallazgos clasificados en alto, medio e informativo, y una nota de
-> la A a la F calculada según esos hallazgos. Las reglas son fijas y el resultado es el
-> mismo siempre, así que sirve para comparar dominios entre sí o seguir su evolución en
-> el tiempo.
+> Hay dos revisiones más. Una se centra en el DNS: **CAA** (quién puede emitir
+> certificados) y **DNSSEC**, distinguiendo si está firmado de si un resolutor pudo
+> validarlo. La otra compara de dos a cinco dominios y los ordena de peor a mejor con
+> reglas fijas, útil para auditorías de cartera o para ver quién mejoró.
+>
+> Cada informe trae hallazgos clasificados en alto, medio e informativo, y una
+> calificación de la A a la F en el campo `calificacion`. Las reglas son fijas y el
+> resultado es el mismo siempre, así que sirve para comparar dominios entre sí o seguir
+> su evolución en el tiempo.
 >
 > Incluye captura de pantalla de una URL, útil para adjuntar evidencia visual al
 > informe sin abrir un navegador.
@@ -77,13 +83,15 @@ English:
 }
 ```
 
-## Herramientas (5)
+## Herramientas (7)
 
 | Herramienta | Parámetros | Devuelve |
 |---|---|---|
 | `estado` | — | Versión y estado del servicio |
-| `auditar_dominio` | `dominio`* | DNS, RDAP, TLS, hallazgos y nota |
-| `auditar_correo` | `dominio`* | MX, SPF, DMARC, DKIM, MTA-STS, BIMI, hallazgos y nota |
+| `auditar_dominio` | `dominio`* | DNS, RDAP, TLS, hallazgos y calificación |
+| `auditar_dns` | `dominio`* | CAA, DNSSEC, SOA, CNAME, TTL, hallazgos y calificación |
+| `auditar_correo` | `dominio`* | MX, SPF, DMARC, DKIM, MTA-STS, BIMI, hallazgos y calificación |
+| `comparar` | `dominios`* | Resumen por dominio y orden de peor a mejor |
 | `auditar_web` | `url`* | Estado, redirecciones, cabeceras, cookies, hallazgos y nota |
 | `captura` | `url`*, `completa` | Imagen PNG y metadatos |
 
@@ -94,6 +102,7 @@ English:
 - «Audita `midominio.pe` y dime qué le falta para no caer en spam.»
 - «Compara la configuración de correo de estos tres dominios y ordena de peor a mejor.»
 - «Revisa las cabeceras de seguridad de esta web y qué nota saca.»
+- «¿Este dominio tiene CAA y DNSSEC? ¿Está realmente validado?»
 - «Captura esta página y adjúntala al informe.»
 
 ## Límites conocidos

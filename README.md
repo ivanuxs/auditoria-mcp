@@ -34,7 +34,9 @@ reproducible y sirve para comparar dominios o seguirlos en el tiempo.
 |---|---|---|
 | `estado` | — | Service version and status |
 | `auditar_dominio` | `dominio`* | DNS, RDAP, TLS, findings, grade |
+| `auditar_dns` | `dominio`* | CAA, DNSSEC, SOA, CNAME, TTL, findings, grade |
 | `auditar_correo` | `dominio`* | MX, SPF, DMARC, DKIM, MTA-STS, BIMI, findings, grade |
+| `comparar` | `dominios`* | Per-domain summary and worst-to-best order |
 | `auditar_web` | `url`* | Status, redirects, headers, cookies, findings, grade |
 | `captura` | `url`*, `completa` | PNG screenshot plus metadata |
 
@@ -46,6 +48,10 @@ reproducible y sirve para comparar dominios o seguirlos en el tiempo.
   anything pointing at the server's own network.
 - Read-only: it inspects public records and never sends mail or changes configuration.
 - Domains with only MX and no A/AAAA record are handled correctly.
+- DNSSEC reports `firmado` (keys or DS present) and `validado` (resolver set the `AD`
+  flag) separately; signatures alone are not claimed to be validated.
+- `comparar` accepts 2 to 5 domains and subtracts 25 points per high finding and 10 per
+  medium one; informational findings do not lower the grade.
 - Nothing is cached between calls; every report is computed live.
 
 ## Docs

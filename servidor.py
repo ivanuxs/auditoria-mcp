@@ -3,8 +3,8 @@
 """Servidor MCP de auditoría web y de correo.
 
 Escucha **solo** en `127.0.0.1`; la puerta pública es el proxy con token.
-Expone `estado`, las auditorías de dominio, correo y web, y la captura de
-pantalla de una URL.
+Expone `estado`, las auditorías de dominio, DNS, correo y web, la comparación
+entre dominios y la captura de pantalla de una URL.
 
 Uso:
     ./.venv/bin/python servidor.py
@@ -19,15 +19,17 @@ from mcp.types import TextContent
 from auditorias import (
     ErrorAuditoria,
     auditar_correo as _auditar_correo,
+    auditar_dns as _auditar_dns,
     auditar_dominio as _auditar_dominio,
     auditar_web as _auditar_web,
+    comparar as _comparar,
 )
 from captura import capturar as _capturar
 
 RAIZ = Path(__file__).resolve().parent
 ENV = RAIZ / ".env"
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def cargar_env(ruta: Path = ENV) -> dict:
@@ -80,6 +82,19 @@ async def auditar_dominio(dominio: str) -> dict:
 
 
 @SERVIDOR.tool()
+async def auditar_dns(dominio: str) -> dict:
+    """Audita CAA, DNSSEC, SOA, CNAME y TTL de un dominio público.
+
+    Args:
+        dominio: Dominio sin esquema, por ejemplo `example.com`.
+    """
+    try:
+        return await _auditar_dns(dominio)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
+
+
+@SERVIDOR.tool()
 async def auditar_correo(dominio: str) -> dict:
     """Audita MX, SPF, DMARC, DKIM, MTA-STS y BIMI de un dominio público.
 
@@ -88,6 +103,19 @@ async def auditar_correo(dominio: str) -> dict:
     """
     try:
         return await _auditar_correo(dominio)
+    except ErrorAuditoria as error:
+        raise ValueError(str(error)) from error
+
+
+@SERVIDOR.tool()
+async def comparar(dominios: str) -> dict:
+    """Compara de 2 a 5 dominios y los ordena de peor a mejor.
+
+    Args:
+        dominios: Lista separada por comas, por ejemplo `uno.pe,dos.pe`.
+    """
+    try:
+        return await _comparar(dominios)
     except ErrorAuditoria as error:
         raise ValueError(str(error)) from error
 

@@ -1,8 +1,7 @@
 # mcp/auditoria
 
 Servidor **MCP** que entrega auditorías deterministas de **dominio, DNS, TLS, correo y
-web** a agentes de IA. En la fase 1 solo expone `estado`; las auditorías reales llegan en
-la fase 2.
+web** a agentes de IA, además de comparación entre dominios y capturas de pantalla.
 
 Proyecto hermano de `../navegador/`, con su propio entorno, token, registros y repositorio.
 
@@ -68,12 +67,18 @@ export PATH=$HOME/.local/node/bin:$PATH
 |---|---|
 | `estado` | Versión y estado del servicio |
 | `auditar_dominio` | A/AAAA/MX/NS/TXT, RDAP (registrador, alta, vencimiento) y TLS |
+| `auditar_dns` | CAA, DNSSEC (firmado/validado), SOA, CNAME, NS y TTL |
 | `auditar_correo` | MX, SPF, DMARC, DKIM (selectores comunes), MTA-STS y BIMI |
+| `comparar` | De 2 a 5 dominios, ordenados de peor a mejor |
 | `auditar_web` | Estado, redirecciones, cabeceras de seguridad, cookies, TLS, robots y sitemap |
 | `captura` | Captura de pantalla PNG de una URL pública (imagen + metadatos) |
 
 Todas rechazan IPs, `localhost` y redes privadas para evitar SSRF. Los resultados incluyen
-`hallazgos` con nivel `alto`, `medio` o `info`.
+`hallazgos` con nivel `alto`, `medio` o `info` y una `calificacion` de la A a la F calculada
+con reglas fijas (−25 por hallazgo alto, −10 por medio; los informativos no restan).
+
+En DNSSEC el informe distingue **firmado** (hay DNSKEY/DS) de **validado** (el resolutor
+marcó la bandera `AD`): no se afirma que esté «seguro» cuando solo hay firmas.
 
 ## Probar
 
